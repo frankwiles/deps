@@ -416,6 +416,7 @@ The implementation targets are:
 | PostgreSQL | The pgvector extension, with extension-version checks and explicit installation prerequisites. Formats and index options without an equivalent remain unsupported. |
 | SQLite | Provisional: SQLite-Vector is the candidate extension. The integration approach and supported capabilities remain to be established. |
 | MySQL | Native `VECTOR` type. |
+| MariaDB | Native `VECTOR` type. |
 
 Declaring a field never installs or loads an extension. 
 
@@ -443,13 +444,6 @@ The initial implementation rejects database changes to vector dimensions,
 storage format, or storage type with `NotSupportedError`. These changes can
 lose data or require rebuilding the column and its indexes.
 
-To change a vector definition:
-
-1. Add a new field.
-2. Backfill it and validate the data.
-3. Replace the indexes.
-4. Remove the old field.
-
 Renames and nullability changes follow the backend's tested behavior.
 
 `inspectdb` must recover dimensions, format, and dense/sparse storage for
@@ -458,7 +452,7 @@ variable-dimensional columns. Generated comments must identify flexible formats
 and other unsupported definitions. `inspectdb` must not substitute default field
 settings.
 
-`value_to_string()` serializes vectors as JSON:
+`Field.value_to_string()` serializes vectors as JSON:
 
 - Dense vectors: a list of numbers (byte values for `BINARY`).
 - Sparse vectors: an object with `dimensions`, `indices`, and `values`.
