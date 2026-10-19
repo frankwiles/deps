@@ -55,6 +55,7 @@ The proposed public imports are:
 ```python
 from django.db.models import (
     SparseVector,
+    VectorDimension,
     VectorDistanceType,
     VectorField,
     VectorIndex,
@@ -65,7 +66,7 @@ from django.db.models import (
 from django.db.models.functions import VectorDistance
 ```
 
-`VectorField`, the enums, and `SparseVector` are defined in
+`VectorField`, `VectorDimension`, the enums, and `SparseVector` are defined in
 `django.db.models.fields.vector` and re-exported from `django.db.models`.
 Backends import these shared definitions, not each other's constants or driver
 types. `VectorDistance` is exported from `django.db.models.functions`.
@@ -93,7 +94,7 @@ Other backends can implement the API.
 
 ```python
 VectorField(
-    dim=6,
+    dimensions=6,
     storage_format=VectorStorageFormat.FLOAT32,
     storage_type=VectorStorageType.DENSE,
     **options,
@@ -105,20 +106,20 @@ The additional arguments are:
 
 | Argument | Meaning |
 | --- | --- |
-| `dim` | Required. A positive integer number of dimensions, or the `VectorField.ANY` sentinel for variable-dimensional dense storage. There is no default; omitting `dim` raises `TypeError`. Booleans, `None`, and strings such as `"*"` or `"ANY"` are not valid dimensions. |
+| `dimensions` | Required. A positive integer number of dimensions, or the `VectorDimension.ANY` sentinel for variable-dimensional dense storage. There is no default; omitting `dimensions` raises `TypeError`. Booleans, `None`, and strings such as `"*"` or `"ANY"` are not valid dimensions. |
 | `storage_format` | One of `FLOAT32`, `FLOAT64`, `INT8`, or `BINARY` from `VectorStorageFormat`. The default is `FLOAT32`. |
 | `storage_type` | `VectorStorageType.DENSE` or `VectorStorageType.SPARSE`. The default is `DENSE`. |
 
 Enum string values match their member names, are stable, and must support
 migration serialization. The API accepts enum members, not arbitrary SQL strings.
 Neither storage argument accepts `None`. The initial API excludes flexible
-scalar formats and mixed dense/sparse columns. Only `dim` accepts `VectorField.ANY`.
+scalar formats and mixed dense/sparse columns. Only `dimensions` accepts `VectorDimension.ANY`.
 
-`VectorField.ANY` is a public singleton sentinel on `VectorField`, not a SQL
+`VectorDimension.ANY` is a public singleton sentinel on `VectorDimension`, not a SQL
 string or vector value. It lets a column store vectors with different dimensions.
 
-`VectorField(dim=3)` maps to Oracle's `VECTOR(3, FLOAT32, DENSE)` or pgvector's
-`vector(3)`. `VectorField(dim=VectorField.ANY)` maps to
+`VectorField(dimensions=3)` maps to Oracle's `VECTOR(3, FLOAT32, DENSE)` or pgvector's
+`vector(3)`. `VectorField(dimensions=VectorDimension.ANY)` maps to
 Oracle's `VECTOR(*, FLOAT32, DENSE)` or pgvector's `vector` without a dimension
 modifier, as described in the [pgvector documentation][pgvector-variable].
 These mappings use the default dense `FLOAT32` storage; other formats require
@@ -129,7 +130,7 @@ from django.db import models
 
 
 class VariableProduct(models.Model):
-    embedding = models.VectorField(dim=models.VectorField.ANY)
+    embedding = models.VectorField(dimensions=models.VectorDimension.ANY)
 
 
 VariableProduct.objects.create(embedding=[0.1, 0.2, 0.3])
@@ -137,11 +138,11 @@ VariableProduct.objects.create(embedding=[0.1, 0.2])
 ```
 
 Each value must have a nonzero dimension. Distance operands must have equal
-actual dimensions, even with `VectorField.ANY`.
+actual dimensions, even with `VectorDimension.ANY`.
 
 Field declarations have these restrictions:
 
-- Sparse fields require a positive integer `dim`; `VectorField.ANY` is not supported.
+- Sparse fields require a positive integer `dimensions`; `VectorDimension.ANY` is not supported.
 - Sparse `BINARY` storage is not supported.
 - Binary dimensions count bits and, when specified, must be a multiple of eight.
 
@@ -177,8 +178,8 @@ Validation rejects non-finite values and overflow in the destination format.
 Floating-point values are rounded to the declared precision, as documented.
 
 An array must have the field's type code. Validation rejects other type codes
-without reinterpretation. A fixed-dimensional numeric vector must contain `dim`
-components. A binary vector must contain `dim / 8` bytes. For example, `[180, 150, 100]` represents a 24-dimensional
+without reinterpretation. A fixed-dimensional numeric vector must contain `dimensions`
+components. A binary vector must contain `dimensions / 8` bytes. For example, `[180, 150, 100]` represents a 24-dimensional
 binary vector, not a three-dimensional vector. Variable-dimensional dense
 vectors still must be nonempty and respect the database's maximum dimensions.
 
@@ -187,7 +188,7 @@ vectors still must be nonempty and respect the database's maximum dimensions.
 Sparse values require the common `SparseVector` class.
 
 Its dimension must match the field. Indices must be zero-based integers,
-strictly increasing, unique, and less than `dim`. Their count must equal the
+strictly increasing, unique, and less than `dimensions`. Their count must equal the
 value count. Explicit zero entries are not permitted. An all-zero sparse vector has empty
 indices and values, subject to the backend capability tests below.
 There is no automatic sorting, duplicate merging, or conversion between dense
@@ -198,10 +199,10 @@ Example:
 ```python
 from django.db.models import SparseVector
 
-query = SparseVector(dim=30, indices=[3, 10, 12], values=[2.5, 2.5, 1.0])
+query = SparseVector(dimensions=30, indices=[3, 10, 12], values=[2.5, 2.5, 1.0])
 ```
 
-`SparseVector(dim, indices, values)` follows these validation rules and exposes
+`SparseVector(dimensions, indices, values)` follows these validation rules and exposes
 these three attributes. The constructor accepts a list or correctly typed array
 for `values`. The field, not the constructor, validates and converts the storage
 format. Both `to_python()` and database reads return a common `SparseVector`,
@@ -266,7 +267,7 @@ from django.db.models.functions import VectorDistance
 
 class Product(models.Model):
     name = models.CharField(max_length=100)
-    embedding = models.VectorField(dim=3)
+    embedding = models.VectorField(dimensions=3)
 
 
 Product.objects.create(name="Example", embedding=[0.9, 1.0, 0.95])
@@ -290,13 +291,13 @@ sparse values use the same expression API:
 ```python
 class SparseProduct(models.Model):
     embedding = models.VectorField(
-        dim=30,
+        dimensions=30,
         storage_format=models.VectorStorageFormat.FLOAT32,
         storage_type=models.VectorStorageType.SPARSE,
     )
 
 
-query = models.SparseVector(dim=30, indices=[3, 10, 12], values=[2.5, 2.5, 1.0])
+query = models.SparseVector(dimensions=30, indices=[3, 10, 12], values=[2.5, 2.5, 1.0])
 SparseProduct.objects.create(embedding=query)
 results = SparseProduct.objects.annotate(
     distance=VectorDistance(
@@ -328,7 +329,7 @@ arguments are:
 
 | Argument | Requirement |
 | --- | --- |
-| `fields` | Exactly one unprefixed name of a concrete `VectorField` on the model. The field must have fixed integer dimensions; `dim=VectorField.ANY` is not supported. |
+| `fields` | Exactly one unprefixed name of a concrete `VectorField` on the model. The field must have fixed integer dimensions; `dimensions=VectorDimension.ANY` is not supported. |
 | `index_type` | `VectorIndexType.HNSW` or `VectorIndexType.IVF`. |
 | `distance` | A `VectorDistanceType` supported by the algorithm and storage format. No backend default is used. |
 
@@ -364,7 +365,7 @@ Example declaration:
 
 ```python
 class IndexedProduct(models.Model):
-    embedding = models.VectorField(dim=128)
+    embedding = models.VectorField(dimensions=128)
 
     class Meta:
         indexes = [
@@ -433,7 +434,7 @@ column identifiers use the schema editor's quoting mechanisms.
 ### Migrations, introspection, and serialization
 
 Field and index deconstruction must preserve all options that affect behavior.
-It must use stable import paths, enum members, and the `VectorField.ANY` sentinel.
+It must use stable import paths, enum members, and the `VectorDimension.ANY` sentinel.
 `CreateModel`, `AddField`, `RemoveField`, `AddIndex`, and `RemoveIndex` must support
 migration state and database operations. Introspection must distinguish vector
 indexes from ordinary indexes for removal and renaming.
@@ -452,7 +453,7 @@ To change a vector definition:
 Renames and nullability changes follow the backend's tested behavior.
 
 `inspectdb` must recover dimensions, format, and dense/sparse storage for
-supported definitions. This includes `dim=models.VectorField.ANY` for
+supported definitions. This includes `dimensions=models.VectorDimension.ANY` for
 variable-dimensional columns. Generated comments must identify flexible formats
 and other unsupported definitions. `inspectdb` must not substitute default field
 settings.
@@ -460,7 +461,7 @@ settings.
 `value_to_string()` serializes vectors as JSON:
 
 - Dense vectors: a list of numbers (byte values for `BINARY`).
-- Sparse vectors: an object with `dim`, `indices`, and `values`.
+- Sparse vectors: an object with `dimensions`, `indices`, and `values`.
 
 `VectorField` does not provide a default form field.
 
@@ -560,12 +561,12 @@ Use a state-only migration only if no physical schema change is needed.
 
 The implementation must include tests for:
 
-- Supported scalar formats, fixed and `VectorField.ANY` dimensions, mixed-length
+- Supported scalar formats, fixed and `VectorDimension.ANY` dimensions, mixed-length
   dense rows, sparse indices and values, all-zero sparse values, nulls, and rounding.
-- Rejection of omitted `dim`, `None` and string dimensions, invalid enums,
+- Rejection of omitted `dimensions`, `None` and string dimensions, invalid enums,
   booleans, range errors, NaN, and infinity.
 - Assignment, `full_clean()`, save/read round trips, bulk operations, updates,
-  fixtures, and migration serialization of fields, enums, and the `VectorField.ANY` sentinel.
+  fixtures, and migration serialization of fields, enums, and the `VectorDimension.ANY` sentinel.
 - Literal and expression operands, aliases, annotations, numeric comparisons,
   ordering, null propagation, negative dot product, mismatched dimensions, and
   zero-vector cosine behavior.
