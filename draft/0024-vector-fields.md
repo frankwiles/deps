@@ -1,5 +1,5 @@
 ---
-DEP: 0024
+DEP: 0021
 Author: Frank Wiles
 Implementation Team: TBD
 Shepherd: Frank Wiles
@@ -7,7 +7,7 @@ Status: Draft
 Type: Feature
 Created: 2026-09-27
 ---
-# DEP 0024: Vector fields and similarity search
+# DEP 0021: Vector fields and similarity search
 
 ## Abstract
 
@@ -422,16 +422,6 @@ Backends must check vector storage, sparse storage, distance metrics, and index
 support separately. Checks must include server versions, editions or distributions,
 extensions, drivers, and client libraries. Where limits differ, check dimensions,
 sparse nonzero entries, and index support separately.
-
-Unsupported options must be rejected rather than silently changing behavior.
-Backends must not downcast values, substitute dense storage for sparse storage,
-or change the requested dimension policy.
-
-Field checks use the selected database aliases and migration routers.
-If a model uses an unsupported database, checks report an error with corrective
-guidance. Schema creation, value conversion, and SQL compilation also raise
-`django.db.NotSupportedError` for unavailable features. Django never substitutes
-JSON, text, or binary storage, or silently skips a requested vector index.
 
 The implementation uses ordinary field conversion, expression compilation,
 and index/schema-editor interfaces. Each backend's parameter typing must
